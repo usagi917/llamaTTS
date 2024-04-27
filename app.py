@@ -55,7 +55,7 @@ def main():
     st.title("AI Chatbot with Voicevox TTS")
     user_input = st.text_input("私に話しかけてみてください")
 
-    if st.button("生成して再生"):
+    if st.button("話しかける"):
         if user_input:
             # ユーザーの入力を表示
             st.write(f"ユーザー: {user_input}")
