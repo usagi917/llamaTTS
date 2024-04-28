@@ -89,30 +89,27 @@ class Message:  # インデントを修正
             return st.write_stream(generater)
 
 def main():
-    st.title("AI Chatbot with Voicevox TTS")
-    user_input = st.text_input("私に話しかけてみてください")
+    st.title('テキストから音声への変換デモ')
+    user_input = st.text_input("テキストを入力してください", "")
+    system_prompt: str = (
+        """あなたは愉快なAIです。ユーザの入力に全て日本語で返答を生成してください.絵文字は使わないこと。"""
+    )
 
-    if st.button("話しかける"):
-        if user_input:
-            # ユーザーの入力を表示
-            st.write(f"ユーザー: {user_input}")
+    def display_chat_history(self):  # この関数は削除されるべきです
+        pass
 
-            # APIからの応答を取得
-            ai_response = get_api_response(user_input, "llama3-70b-8192")
+    def display_stream(self, generater):  # この関数は削除されるべきです
+        pass
 
-            # AIの応答を表示
-            st.write(f"AI: {ai_response}")
+    if st.button("送信"):
+        llm = GroqAPI('llama3-70b-8192')  # モデル名は例として選択
+        response_text = llm.response_stream([{"role": "user", "content": f"{system_prompt} {user_input}"}])
 
-            # テキストを音声に変換
-            if ai_response:
-                speaker_id = '1'  # 常に話者IDを "1" に設定
-                audio_content = text_to_speech(ai_response, speaker_id)
-                if audio_content:
-                    st.audio(audio_content, format='audio/mp3')
-                else:
-                    st.error("音声合成に失敗しました。")
-        else:
-            st.error("テキストを入力してください.")
+        if response_text:
+            st.write("応答:", response_text)  # 応答をテキストで表示
+            audio_file = synthesize_text(response_text)  # テキストを音声に変換
+            if audio_file:
+                st.audio(audio_file)  # 生成された音声ファイルを再生
 
 if __name__ == "__main__":
     main()
