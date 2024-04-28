@@ -17,7 +17,7 @@ API_KEY = os.getenv('GOOGLE_CLOUD_API_KEY')
 class GroqAPI:
     def __init__(self, model_name: str):
         self.client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        self.model_name = model_name
+        self.model_name = "llama3-70b-8192"
 
     def _response(self, message):
         return self.client.chat.completions.create(
@@ -94,12 +94,6 @@ def main():
     system_prompt: str = (
         """あなたは愉快なAIです。ユーザの入力に全て日本語で返答を生成してください.絵文字は使わないこと。"""
     )
-
-    def display_chat_history(self):  # この関数は削除されるべきです
-        pass
-
-    def display_stream(self, generater):  # この関数は削除されるべきです
-        pass
 
     if st.button("送信"):
         llm = GroqAPI('llama3-70b-8192')  # モデル名は例として選択
