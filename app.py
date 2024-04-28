@@ -1,61 +1,98 @@
 import os
-from pathlib import Path
 import requests
+import json
+import base64
+from pathlib import Path
+
 import streamlit as st
 from dotenv import load_dotenv
+from groq import Groq
 
-# 環境変数の読み込み
+# 環境変数のロード
 load_dotenv(Path(__file__).parent / ".env")
 
-def get_api_response(user_message, model_name):
-    # 役割に関するプロンプトを定義
-    system_prompt = "必ず日本語で返信すること。あなたは親切で知識豊かなアシスタントです。ユーザーの質問に明確かつフレンドリーに答えてください。"
+# Google Cloud Text-to-Speech APIキーの取得
+API_KEY = os.getenv('GOOGLE_CLOUD_API_KEY')
 
-    headers = {
-        "Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}"
-    }
-    data = {
-        "model": model_name,
-        "messages": [
-            {"role": "system", "content": system_prompt},  # システムプロンプトを追加
-            {"role": "user", "content": user_message}      # ユーザーのメッセージを追加
-        ],
-        "temperature": 0,
-        "max_tokens": 4096,
-    }
-    response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data)
-    if response.status_code == 200:
-        return response.json()["choices"][0]["message"]["content"]
-    else:
-        print(f"API Error: {response.status_code}")
-        return "エラーが発生しました。応答を取得できません。"
+class GroqAPI:
+    def __init__(self, model_name: str):
+        self.client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        self.model_name = model_name
 
-def text_to_speech(text, speaker_id='1'):
+    def _response(self, message):
+        return self.client.chat.completions.create(
+            model=self.model_name,
+            messages=message,
+            temperature=0,
+            max_tokens=4096,
+            stream=True,
+            stop=None,
+        )
+
+    def response_stream(self, message):
+        full_response = ""
+        for chunk in self._response(message):
+            if chunk.choices[0].delta.content:
+                full_response += chunk.choices[0].delta.content
+        return full_response
+
+def synthesize_text(text):
+    """Google Text-to-Speech APIを使用してテキストを音声に変換する"""
+    url = "https://texttospeech.googleapis.com/v1/text:synthesize"
     headers = {
-        "Authorization": f"Bearer {os.getenv('TTS_API_KEY')}"
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": API_KEY
     }
-    params = {
-        "text": text,
-        "speaker": speaker_id
+    body = {
+        "input": {"text": text},
+        "voice": {"languageCode": "ja-JP", "ssmlGender": "FEMALE"},
+        "audioConfig": {"audioEncoding": "MP3"}
     }
-    response = requests.get("https://api.tts.quest/v3/voicevox/synthesis", headers=headers, params=params)
+
+    response = requests.post(url, headers=headers, json=body)
     if response.status_code == 200:
-        audio_info = response.json()
-        if audio_info['success']:
-            audio_url = audio_info['mp3StreamingUrl']  # ストリーミングURLを使用
-            return requests.get(audio_url).content
-        else:
-            print("音声合成に失敗しました。")
-            return None
+        audio_content = response.json()['audioContent']
+        filename = "output.mp3"
+        with open(filename, "wb") as out:
+            out.write(base64.b64decode(audio_content))
+        return filename
     else:
-        print(f"TTS API Error: {response.status_code}")
+        st.error(f"Error: {response.status_code}, {response.text}")
         return None
+
+class Message:  # インデントを修正
+    system_prompt: str = (
+        """あなたは愉快なAIです。ユーザの入力に全て日本語で返答を生成してください"""
+    )
+
+    def __init__(self):
+        if "messages" not in st.session_state:
+            st.session_state.messages = [
+                {
+                    "role": "system",
+                    "content": self.system_prompt,
+                }
+            ]
+
+    def add(self, role: str, content: str):
+        st.session_state.messages.append({"role": role, "content": content})
+
+    def display_chat_history(self):
+        for message in st.session_state.messages:
+            if message["role"] == "system":
+                continue
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+    def display_stream(self, generater):
+        with st.chat_message("assistant"):
+            return st.write_stream(generater)
 
 def main():
     st.title("AI Chatbot with Voicevox TTS")
     user_input = st.text_input("私に話しかけてみてください")
 
-    if st.button("送信"):
+    if st.button("話しかける"):
         if user_input:
             # ユーザーの入力を表示
             st.write(f"ユーザー: {user_input}")
